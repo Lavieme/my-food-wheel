@@ -1,0 +1,26 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const file=path.join(root,'data','food-wheel.json');
+if(!fs.existsSync(file)){console.log('暂无饭局数据。先运行 npm start，并完成一次真实饭局。');process.exit(0);}
+const db=JSON.parse(fs.readFileSync(file,'utf8'));
+const since=Date.now()-7*24*60*60*1000;
+const all=Object.values(db.rooms);
+const sample=all.filter(r=>r.places.every(p=>p.sample));
+const groups=all.filter(r=>!r.solo&&!r.places.every(p=>p.sample));
+const cohort=groups.filter(r=>r.createdAt>=since);
+const completed=cohort.filter(r=>r.stage==='done');
+const weekly=groups.filter(r=>r.completedAt>=since);
+const durations=completed.map(r=>(r.completedAt-r.createdAt)/60000).sort((a,b)=>a-b);
+const median=durations.length?(durations[Math.floor((durations.length-1)/2)]+durations[Math.ceil((durations.length-1)/2)])/2:null;
+const feedback=weekly.filter(r=>r.feedback);
+console.log('食光转盘 · 本地近 7 天观察（真实店铺多人饭局）');
+console.log(`近7天发起：${cohort.length} 场；其中截至当前已完成：${completed.length} 场`);
+console.log(`该发起批次完成率：${cohort.length?(completed.length/cohort.length*100).toFixed(1)+'%':'暂无样本'}`);
+console.log(`已完成饭局决策耗时中位数：${median===null?'暂无样本':median.toFixed(1)+' 分钟'}（不含未完成者）`);
+console.log(`近7天完成的共同决策：${weekly.length} 场`);
+console.log(`其中已餐后反馈：${feedback.length} 场；反馈实际就餐：${feedback.filter(r=>r.feedback.value==='went').length} 场`);
+console.log(`未反馈：${weekly.length-feedback.length} 场；不将确认或地图跳转当作实际就餐。`);
+console.log(`排除纯示例店铺饭局：${sample.length} 场；排除单人场景。小样本仅供探索。`);
+console.log('注：主动离开的成员不计作同意；全员离开后关闭的饭局不在当前房间批次中，原始关闭事件仍保留。');
